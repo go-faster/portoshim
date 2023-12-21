@@ -70,7 +70,16 @@ func NewPortoshimRuntimeMapper() (*PortoshimRuntimeMapper, error) {
 		return nil, fmt.Errorf("failed to initialize cni: %v", err)
 	}
 	if err = netPlugin.Load(cni.WithLoNetwork, cni.WithDefaultConf); err != nil {
-		return nil, fmt.Errorf("failed to load cni configuration: %v", err)
+		zap.S().Warnf("failed to load cni configuration: %v", err)
+		go func() {
+			// Trying to do it in background. Probably CNI is not installed yet.
+			ticker := time.NewTicker(1 * time.Second)
+			for range ticker.C {
+				if err = netPlugin.Load(cni.WithLoNetwork, cni.WithDefaultConf); err != nil {
+					zap.S().Warnf("failed to load cni configuration: %v", err)
+				}
+			}
+		}()
 	}
 	rm.netPlugin = netPlugin
 
@@ -151,7 +160,11 @@ func prepareResources(spec *pb.TContainerSpec, cfg *v1.LinuxContainerResources) 
 	// memory
 	memoryValue := uint64(cfg.MemoryLimitInBytes)
 	spec.MemoryLimit = &memoryValue
-	spec.MemoryGuarantee = &memoryValue
+
+	// HACK: "memory_guarantee is not supported" error.
+	// TODO: Remove when figured
+	// Also, why we need to set memory_guarantee to the same value as memory_limit?
+	// spec.MemoryGuarantee = &memoryValue
 }
 
 // command and env
