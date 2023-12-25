@@ -365,8 +365,9 @@ func convertMountToVolumeSpec(id string, mount *v1.Mount) *pb.TVolumeSpec {
 			Target:    &mount.ContainerPath,
 			ReadOnly:  &mount.Readonly,
 		}},
-		Backend: getStringPointer("bind"),
-		Storage: &mount.HostPath,
+		Backend:  getStringPointer("bind"),
+		Storage:  &mount.HostPath,
+		ReadOnly: &mount.Readonly,
 	}
 }
 
