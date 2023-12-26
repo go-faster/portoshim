@@ -167,6 +167,22 @@ func prepareResources(spec *pb.TContainerSpec, cfg *v1.LinuxContainerResources) 
 	// spec.MemoryGuarantee = &memoryValue
 }
 
+type securitContextDesc interface {
+	*v1.LinuxSandboxSecurityContext | *v1.LinuxContainerSecurityContext
+	GetPrivileged() bool
+}
+
+func prepareCapabilities[C securitContextDesc](spec *pb.TContainerSpec, cfg C) {
+	if cfg.GetPrivileged() {
+		spec.Capabilities = &pb.TCapabilities{
+			Cap: []string{
+				"SYS_ADMIN",
+				"NET_ADMIN",
+			},
+		}
+	}
+}
+
 // command and env
 func wrapCmdWithLogShim(cmd []string) []string {
 	// No logs needed for pause command
@@ -918,6 +934,9 @@ func (m *PortoshimRuntimeMapper) RunPodSandbox(ctx context.Context, req *v1.RunP
 		prepareResources(podSpec, res)
 	}
 
+	// capabilities
+	prepareCapabilities(podSpec, req.GetConfig().GetLinux().GetSecurityContext())
+
 	// labels and annotations
 	DebugLog(ctx,
 		"prepare labels and annotations: labels=%+v annotations=%+v",
@@ -930,15 +949,6 @@ func (m *PortoshimRuntimeMapper) RunPodSandbox(ctx context.Context, req *v1.RunP
 	DebugLog(ctx, "prepare pod root: %s %s", id, Cfg.Images.PauseImage)
 	if err := prepareRoot(ctx, podSpec, volumes, "", Cfg.Images.PauseImage); err != nil {
 		return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
-	}
-
-	if sec := req.GetConfig().GetLinux().GetSecurityContext(); sec.GetPrivileged() {
-		podSpec.Capabilities = &pb.TCapabilities{
-			Cap: []string{
-				"SYS_ADMIN",
-				"NET_ADMIN",
-			},
-		}
 	}
 
 	// create pod and rootfs
@@ -1180,6 +1190,9 @@ func (m *PortoshimRuntimeMapper) CreateContainer(ctx context.Context, req *v1.Cr
 		DebugLog(ctx, "prepare resources: %+v", res)
 		prepareResources(containerSpec, res)
 	}
+
+	// capabilities
+	prepareCapabilities(containerSpec, req.GetConfig().GetLinux().GetSecurityContext())
 
 	// labels and annotations
 	DebugLog(ctx,
