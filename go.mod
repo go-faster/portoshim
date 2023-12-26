@@ -1,6 +1,6 @@
 module main
 
-go 1.17
+go 1.21
 
 require (
 	github.com/containerd/containerd v1.5.14
