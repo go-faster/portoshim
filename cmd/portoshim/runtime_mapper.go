@@ -180,6 +180,9 @@ func prepareCapabilities[C securitContextDesc](spec *pb.TContainerSpec, cfg C) {
 				"NET_ADMIN",
 			},
 		}
+		// Setting user to root effectively gives access to /proc/sys.
+		root := "root"
+		spec.User = &root
 	}
 }
 
