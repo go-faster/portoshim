@@ -175,12 +175,6 @@ type securitContextDesc interface {
 
 func prepareCapabilities[C securitContextDesc](spec *pb.TContainerSpec, cfg C) {
 	if cfg.GetPrivileged() {
-		spec.Capabilities = &pb.TCapabilities{
-			Cap: []string{
-				"SYS_ADMIN",
-				"NET_ADMIN",
-			},
-		}
 		// Setting user to root effectively gives access to /proc/sys.
 		spec.OwnerCred = &pb.TCred{
 			User: proto.String("root"),
