@@ -334,7 +334,7 @@ func prepareRoot(ctx context.Context, spec *pb.TContainerSpec, volumes *[]*pb.TV
 		rootPath = rootAbsPath
 	}
 
-	err := os.Mkdir(rootAbsPath, 0755)
+	err := os.Mkdir(rootAbsPath, 0o755)
 	if err != nil {
 		if os.IsExist(err) {
 			WarnLog(ctx, "%s: directory already exists: %s", getCurrentFuncName(), rootPath)
@@ -344,7 +344,7 @@ func prepareRoot(ctx context.Context, spec *pb.TContainerSpec, volumes *[]*pb.TV
 	}
 
 	root := pb.TVolumeSpec{
-		Links: []*pb.TVolumeLink{&pb.TVolumeLink{
+		Links: []*pb.TVolumeLink{{
 			Container: &id,
 			Target:    getStringPointer("/"),
 		}},
@@ -360,7 +360,7 @@ func prepareRoot(ctx context.Context, spec *pb.TContainerSpec, volumes *[]*pb.TV
 
 func convertMountToVolumeSpec(id string, mount *v1.Mount) *pb.TVolumeSpec {
 	return &pb.TVolumeSpec{
-		Links: []*pb.TVolumeLink{&pb.TVolumeLink{
+		Links: []*pb.TVolumeLink{{
 			Container: &id,
 			Target:    &mount.ContainerPath,
 			ReadOnly:  &mount.Readonly,
@@ -829,7 +829,7 @@ func (m *PortoshimRuntimeMapper) preparePodNetwork(ctx context.Context, podSpec 
 	// net
 	podSpec.Net = &pb.TContainerNetConfig{
 		Cfg: []*pb.TContainerNetOption{
-			&pb.TContainerNetOption{
+			{
 				Opt: getStringPointer("netns"),
 				Arg: []string{filepath.Base(netnsPath.GetPath())},
 			},
@@ -860,7 +860,7 @@ func (m *PortoshimRuntimeMapper) preparePodNetwork(ctx context.Context, podSpec 
 			limit, _ := strconv.ParseUint(v, 0, 64)
 			m := &pb.TUintMap{
 				Map: []*pb.TUintMap_TUintMapEntry{
-					&pb.TUintMap_TUintMapEntry{
+					{
 						Key: getStringPointer(ifPrefixName),
 						Val: getUintPointer(limit),
 					},
@@ -930,6 +930,15 @@ func (m *PortoshimRuntimeMapper) RunPodSandbox(ctx context.Context, req *v1.RunP
 	DebugLog(ctx, "prepare pod root: %s %s", id, Cfg.Images.PauseImage)
 	if err := prepareRoot(ctx, podSpec, volumes, "", Cfg.Images.PauseImage); err != nil {
 		return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
+	}
+
+	if sec := req.GetConfig().GetLinux().GetSecurityContext(); sec.GetPrivileged() {
+		podSpec.Capabilities = &pb.TCapabilities{
+			Cap: []string{
+				"SYS_ADMIN",
+				"NET_ADMIN",
+			},
+		}
 	}
 
 	// create pod and rootfs
