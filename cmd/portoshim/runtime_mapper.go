@@ -13,6 +13,7 @@ import (
 
 	"github.com/containerd/containerd/pkg/netns"
 	cni "github.com/containerd/go-cni"
+	"github.com/golang/protobuf/proto"
 	pb "github.com/ten-nancy/porto/src/api/go/porto/pkg/rpc"
 	"go.uber.org/zap"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -181,8 +182,9 @@ func prepareCapabilities[C securitContextDesc](spec *pb.TContainerSpec, cfg C) {
 			},
 		}
 		// Setting user to root effectively gives access to /proc/sys.
-		root := "root"
-		spec.OwnerUser = &root
+		spec.OwnerCred = &pb.TCred{
+			User: proto.String("root"),
+		}
 	}
 }
 
