@@ -179,6 +179,9 @@ func prepareCapabilities[C securitContextDesc](spec *pb.TContainerSpec, cfg C) {
 		spec.OwnerCred = &pb.TCred{
 			User: proto.String("root"),
 		}
+		spec.TaskCred = &pb.TCred{
+			User: proto.String("root"),
+		}
 	}
 }
 
