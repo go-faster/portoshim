@@ -175,13 +175,14 @@ type securitContextDesc interface {
 
 func prepareCapabilities[C securitContextDesc](spec *pb.TContainerSpec, cfg C) {
 	if cfg.GetPrivileged() {
-		// Setting user to root effectively gives access to /proc/sys.
+		// FIXME(tdakkota): hacky stuff to make /proc access work.
 		spec.OwnerCred = &pb.TCred{
 			User: proto.String("root"),
 		}
 		spec.TaskCred = &pb.TCred{
 			User: proto.String("root"),
 		}
+		spec.VirtMode = proto.String("docker")
 	}
 }
 
