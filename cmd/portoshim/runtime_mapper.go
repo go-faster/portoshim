@@ -53,7 +53,7 @@ var (
 	}
 )
 
-var excludedMountSources = []string{"/dev", "/sys"}
+var excludedMountSources = []string{"/dev"}
 
 type PortoshimRuntimeMapper struct {
 	netPlugin       cni.CNI
@@ -401,6 +401,7 @@ func prepareContainerMounts(ctx context.Context, id string, volumes *[]*pb.TVolu
 		mount.ContainerPath = filepath.Clean(mount.ContainerPath)
 		mount.HostPath = filepath.Clean(mount.HostPath)
 		if sliceContainsString(excludedMountSources, mount.HostPath) {
+			WarnLog(ctx, "skipping excluded mount %q", mount.HostPath)
 			continue
 		}
 
