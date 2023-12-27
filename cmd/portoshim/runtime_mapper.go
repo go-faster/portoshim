@@ -53,8 +53,6 @@ var (
 	}
 )
 
-var excludedMountSources = []string{"/dev"}
-
 type PortoshimRuntimeMapper struct {
 	netPlugin       cni.CNI
 	streamingServer streaming.Server
@@ -327,17 +325,6 @@ func prepareEnv(ctx context.Context, spec *pb.TContainerSpec, env []*v1.KeyValue
 	}
 }
 
-// root and mounts
-func sliceContainsString(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-
-	return false
-}
-
 func getRootPath(id string) string {
 	return filepath.Join(Cfg.Portoshim.VolumesDir, id)
 }
@@ -400,10 +387,6 @@ func prepareContainerMounts(ctx context.Context, id string, volumes *[]*pb.TVolu
 		// pre-normalize volume path for porto as it expects "normal" path
 		mount.ContainerPath = filepath.Clean(mount.ContainerPath)
 		mount.HostPath = filepath.Clean(mount.HostPath)
-		if sliceContainsString(excludedMountSources, mount.HostPath) {
-			WarnLog(ctx, "skipping excluded mount %q", mount.HostPath)
-			continue
-		}
 
 		// TODO: durty hack
 		if mount.ContainerPath == "/var/run/secrets/kubernetes.io/serviceaccount" {
