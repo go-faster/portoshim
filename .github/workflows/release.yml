@@ -51,7 +51,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-${{ runner.arch }}-go-
 
-
     - name: Copy debian directory
       run: |
         cp -r ./build/packages/portoshim/debian ./debian
@@ -74,8 +73,8 @@ jobs:
     - name: Prepare archive
       run: |
         mkdir -p ${{github.workspace}}/build/bin
-        cp ${{github.workspace}}/build/portoshim ${{github.workspace}}/build/bin
-        cp ${{github.workspace}}/build/portoshim ${{github.workspace}}/build/bin
+        cp ${{github.workspace}}/portoshim ${{github.workspace}}/build/bin
+        cp ${{github.workspace}}/logshim ${{github.workspace}}/build/bin
         tar czvf portoshim_${{env.UBUNTU_NAME}}_v${{env.VERSION}}_${{matrix.arch}}.tgz -C ${{github.workspace}}/build/bin .
 
     - name: Upload archive
