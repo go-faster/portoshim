@@ -22,6 +22,29 @@ jobs:
         sudo apt update
         sudo apt install -y make
 
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: stable
+        cache: false
+
+    - name: Get Go environment
+      id: go-env
+      shell: bash
+      run: |
+        echo "cache=$(go env GOCACHE)" >> $GITHUB_ENV
+        echo "modcache=$(go env GOMODCACHE)" >> $GITHUB_ENV
+
+    - name: Set up cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ env.cache }}
+          ${{ env.modcache }}
+        key: ${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-go-
+
     - name: Make
       run: make
 
