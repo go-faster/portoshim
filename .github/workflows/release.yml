@@ -6,6 +6,11 @@ on:
     paths:
       - 'build/packages/portoshim/debian/changelog'
 
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
 jobs:
   build_deb:
     strategy:
