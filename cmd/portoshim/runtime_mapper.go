@@ -254,8 +254,11 @@ func envToVars(ctx context.Context, env []string) []*pb.TContainerEnvVar {
 	return envVars
 }
 
-func prepareCommand(ctx context.Context, spec *pb.TContainerSpec, cfgCmd, cfgArgs, imgCmd []string, disableLogShim bool) error {
+func prepareCommand(ctx context.Context, spec *pb.TContainerSpec, root string, cfgCmd, cfgArgs, imgCmd []string, disableLogShim bool) error {
 	id := spec.GetName()
+	if root == "" {
+		root = getRootPath(id)
+	}
 	env := spec.GetEnv().GetVar()
 
 	cmd := imgCmd
@@ -273,7 +276,7 @@ func prepareCommand(ctx context.Context, spec *pb.TContainerSpec, cfgCmd, cfgArg
 	}
 	// Try to find out binary path inside chroot if we have non-absolute command
 	if cmd[0][0] != '/' {
-		execPath := findChrootExecutable(ctx, findEnvPathOrDefault(env), getRootPath(id), cmd[0])
+		execPath := findChrootExecutable(ctx, findEnvPathOrDefault(env), root, cmd[0])
 		if execPath != "" {
 			cmd[0] = execPath
 		} else {
@@ -952,7 +955,7 @@ func (m *PortoshimRuntimeMapper) RunPodSandbox(ctx context.Context, req *v1.RunP
 
 	// command + args
 	DebugLog(ctx, "prepare pod command: cmd=%+v", image.GetConfig().GetCmd())
-	if err = prepareCommand(ctx, podSpec, []string{}, []string{}, image.GetConfig().GetCmd(), false); err != nil {
+	if err = prepareCommand(ctx, podSpec, "", []string{}, []string{}, image.GetConfig().GetCmd(), false); err != nil {
 		_ = pc.Destroy(id)
 		return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
 	}
@@ -1222,7 +1225,7 @@ func (m *PortoshimRuntimeMapper) CreateContainer(ctx context.Context, req *v1.Cr
 		req.GetConfig().GetArgs(),
 		image.GetConfig().GetCmd(),
 	)
-	if err = prepareCommand(ctx, containerSpec, req.GetConfig().GetCommand(), req.GetConfig().GetArgs(), image.GetConfig().GetCmd(), false); err != nil {
+	if err = prepareCommand(ctx, containerSpec, "", req.GetConfig().GetCommand(), req.GetConfig().GetArgs(), image.GetConfig().GetCmd(), false); err != nil {
 		_ = pc.Destroy(id)
 		return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
 	}
@@ -1443,7 +1446,7 @@ func (m *PortoshimRuntimeMapper) ExecSync(ctx context.Context, req *v1.ExecSyncR
 	prepareExecEnv(ctx, containerSpec, env)
 
 	// command
-	if err := prepareCommand(ctx, containerSpec, req.GetCmd(), nil, nil, true); err != nil {
+	if err := prepareCommand(ctx, containerSpec, getRootPath(containerID), req.GetCmd(), nil, nil, true); err != nil {
 		return nil, fmt.Errorf("failed to prepare command '%v' for exec container %s: %w", req.Cmd, id, err)
 	}
 
