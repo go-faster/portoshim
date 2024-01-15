@@ -56,7 +56,7 @@ func (sr StreamingRuntime) Exec(_ context.Context, containerID string, cmd []str
 	prepareExecEnv(ctx, containerSpec, env)
 
 	// command
-	if err := prepareCommand(ctx, containerSpec, cmd, nil, nil, true); err != nil {
+	if err := prepareCommand(ctx, containerSpec, "", cmd, nil, nil, true); err != nil {
 		return fmt.Errorf("%s: %v", getCurrentFuncName(), err)
 	}
 
@@ -161,7 +161,6 @@ func (sr StreamingRuntime) Exec(_ context.Context, containerID string, cmd []str
 					return
 				}
 			}
-
 		}
 	}
 
@@ -183,9 +182,11 @@ func (sr StreamingRuntime) Exec(_ context.Context, containerID string, cmd []str
 
 	return nil
 }
+
 func (sr StreamingRuntime) Attach(ctx context.Context, containerID string, in io.Reader, out, err io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize) error {
 	return nil
 }
+
 func (sr StreamingRuntime) PortForward(ctx context.Context, podSandboxID string, port int32, stream io.ReadWriteCloser) error {
 	return nil
 }
