@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 	grpc "google.golang.org/grpc"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 type PortoshimServer struct {
@@ -74,7 +75,8 @@ func getRequestID(ctx context.Context) string {
 func serverInterceptor(ctx context.Context,
 	req interface{},
 	info *grpc.UnaryServerInfo,
-	handler grpc.UnaryHandler) (interface{}, error) {
+	handler grpc.UnaryHandler,
+) (interface{}, error) {
 	start := time.Now()
 
 	ctx, err := portoClientContext(ctx)
@@ -99,7 +101,11 @@ func serverInterceptor(ctx context.Context,
 
 	h, err := handler(ctx, req)
 
-	DebugLog(ctx, "%+v", h)
+	if execSync, ok := h.(*v1.ExecSyncResponse); ok {
+		DebugLog(ctx, "&ExecSyncResponse{Stdout:%q,Stderr:%q}", execSync.Stdout, execSync.Stderr)
+	} else {
+		DebugLog(ctx, "%+v", h)
+	}
 	if err != nil {
 		WarnLog(ctx, "%v", err)
 	}
@@ -120,7 +126,7 @@ func NewPortoshimServer(socketPath string) (*PortoshimServer, error) {
 		return nil, err
 	}
 
-	if err = os.MkdirAll(Cfg.Portoshim.VolumesDir, 0755); err != nil {
+	if err = os.MkdirAll(Cfg.Portoshim.VolumesDir, 0o755); err != nil {
 		zap.S().Fatalf("cannot create volumes dir: %v", err)
 		return nil, fmt.Errorf("cannot create volumes dir: %v", err)
 	}
