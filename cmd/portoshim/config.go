@@ -35,8 +35,9 @@ type PortoshimConfig struct {
 	} `yaml:"StreamingServer"`
 
 	Images struct {
-		PauseImage string         `yaml:"PauseImage"`
-		Registries []RegistryInfo `yaml:"Registries"`
+		PauseImage     string         `yaml:"PauseImage"`
+		PullPauseImage bool           `yaml:"PullPauseImage"`
+		Registries     []RegistryInfo `yaml:"Registries"`
 	} `yaml:"Images"`
 }
 
@@ -60,6 +61,7 @@ StreamingServer:
     Port:    7255
 Images:
     PauseImage: registry.k8s.io/pause:3.7
+    PullPauseImage: true
 `
 
 var Cfg *PortoshimConfig

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"github.com/containerd/containerd/pkg/netns"
 	cni "github.com/containerd/go-cni"
 	"github.com/golang/protobuf/proto"
+	"github.com/ten-nancy/porto/src/api/go/porto"
+	"github.com/ten-nancy/porto/src/api/go/porto/pkg/rpc"
 	pb "github.com/ten-nancy/porto/src/api/go/porto/pkg/rpc"
 	"go.uber.org/zap"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -908,13 +911,44 @@ func (m *PortoshimRuntimeMapper) Version(ctx context.Context, req *v1.VersionReq
 	}, nil
 }
 
+func (m *PortoshimRuntimeMapper) preparePauseImage(ctx context.Context, pc porto.PortoAPI) (*rpc.TDockerImage, error) {
+	imgName := Cfg.Images.PauseImage
+
+	DebugLog(ctx, "check image: %s", imgName)
+	var perr *porto.PortoError
+	image, err := pc.DockerImageStatus(imgName, "")
+	switch {
+	case err == nil:
+		// Everything is fine, return image info.
+		return image, nil
+	case !errors.As(err, &perr) || perr.Code != pb.EError_DockerImageNotFound:
+		return nil, err
+	default:
+		DebugLog(ctx, "can't find pause image: %s", imgName)
+		if !Cfg.Images.PullPauseImage {
+			// Can't pull pause image either, return original error.
+			return nil, err
+		}
+	}
+
+	registry := GetImageRegistry(imgName)
+	authToken := registry.AuthToken
+
+	DebugLog(ctx, "pulling pause image: %s", imgName)
+	image, err = pc.PullDockerImage(imgName, "", authToken, registry.AuthPath, registry.AuthService)
+	if err != nil {
+		return nil, fmt.Errorf("pull pause image: %w", err)
+	}
+
+	return image, nil
+}
+
 func (m *PortoshimRuntimeMapper) RunPodSandbox(ctx context.Context, req *v1.RunPodSandboxRequest) (*v1.RunPodSandboxResponse, error) {
 	id := createID(req.GetConfig().GetMetadata().GetName())
 	pc := getPortoClient(ctx)
 
 	// get image
-	DebugLog(ctx, "check image: %s", Cfg.Images.PauseImage)
-	image, err := pc.DockerImageStatus(Cfg.Images.PauseImage, "")
+	image, err := m.preparePauseImage(ctx, pc)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
 	}
@@ -989,7 +1023,6 @@ func (m *PortoshimRuntimeMapper) RunPodSandbox(ctx context.Context, req *v1.RunP
 		PodSandboxId: id,
 	}, nil
 }
-
 
 func (m *PortoshimRuntimeMapper) StopPodSandbox(ctx context.Context, req *v1.StopPodSandboxRequest) (*v1.StopPodSandboxResponse, error) {
 	pc := getPortoClient(ctx)
