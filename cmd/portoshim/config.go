@@ -24,9 +24,10 @@ type PortoshimConfig struct {
 	} `yaml:"Porto"`
 
 	CNI struct {
-		ConfDir  string `yaml:"ConfDir"`
-		BinDir   string `yaml:"BinDir"`
-		NetnsDir string `yaml:"NetnsDir"`
+		ConfDir        string `yaml:"ConfDir"`
+		BinDir         string `yaml:"BinDir"`
+		NetnsDir       string `yaml:"NetnsDir"`
+		ConfigTemplate string `yaml:"ConfigTemplate"`
 	} `yaml:"CNI"`
 
 	StreamingServer struct {

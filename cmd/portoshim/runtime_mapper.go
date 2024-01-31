@@ -61,6 +61,13 @@ type PortoshimRuntimeMapper struct {
 	streamingServer streaming.Server
 }
 
+func netPluginOptions() []cni.Opt {
+	return []cni.Opt{
+		cni.WithLoNetwork,
+		cni.WithDefaultConf,
+	}
+}
+
 func NewPortoshimRuntimeMapper() (*PortoshimRuntimeMapper, error) {
 	rm := &PortoshimRuntimeMapper{}
 
@@ -71,13 +78,13 @@ func NewPortoshimRuntimeMapper() (*PortoshimRuntimeMapper, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize cni: %v", err)
 	}
-	if err = netPlugin.Load(cni.WithLoNetwork, cni.WithDefaultConf); err != nil {
+	if err = netPlugin.Load(netPluginOptions()...); err != nil {
 		zap.S().Warnf("failed to load cni configuration: %v", err)
 		go func() {
 			// Trying to do it in background. Probably CNI is not installed yet.
 			ticker := time.NewTicker(1 * time.Second)
 			for range ticker.C {
-				if err = netPlugin.Load(cni.WithLoNetwork, cni.WithDefaultConf); err != nil {
+				if err = netPlugin.Load(netPluginOptions()...); err != nil {
 					zap.S().Warnf("failed to load cni configuration: %v", err)
 				}
 			}
@@ -1677,7 +1684,36 @@ func (m *PortoshimRuntimeMapper) ListPodSandboxStats(ctx context.Context, req *v
 }
 
 func (m *PortoshimRuntimeMapper) UpdateRuntimeConfig(ctx context.Context, req *v1.UpdateRuntimeConfigRequest) (*v1.UpdateRuntimeConfigResponse, error) {
-	return nil, fmt.Errorf("not implemented UpdateRuntimeConfig")
+	podCIDRs := req.GetRuntimeConfig().GetNetworkConfig().GetPodCidr()
+	if podCIDRs == "" {
+		DebugLog(ctx, "No PodCIDR specified, do nothing")
+		return &v1.UpdateRuntimeConfigResponse{}, nil
+	}
+	tmplData, err := parsePodCIDRs(strings.Split(podCIDRs, ","))
+	if err != nil {
+		return nil, fmt.Errorf("parse pod cidrs %q: %w", podCIDRs, err)
+	}
+
+	if Cfg.CNI.ConfigTemplate == "" {
+		DebugLog(ctx, "No CNI config template specified, do nothing")
+		return &v1.UpdateRuntimeConfigResponse{}, nil
+	}
+
+	if err := m.netPlugin.Status(); err == nil {
+		DebugLog(ctx, "CNI plugin already initialized, do nothing")
+		return &v1.UpdateRuntimeConfigResponse{}, nil
+	}
+
+	if err := m.netPlugin.Load(netPluginOptions()...); err == nil {
+		DebugLog(ctx, "CNI plugin successfully loaded, do nothing")
+		return &v1.UpdateRuntimeConfigResponse{}, nil
+	}
+
+	DebugLog(ctx, "Generating CNI config to %s", Cfg.CNI.ConfDir)
+	if err := writeCNIConfig(Cfg.CNI.ConfDir, Cfg.CNI.ConfigTemplate, tmplData); err != nil {
+		return nil, fmt.Errorf("generate CNI config: %w", err)
+	}
+	return &v1.UpdateRuntimeConfigResponse{}, nil
 }
 
 func (m *PortoshimRuntimeMapper) Status(ctx context.Context, req *v1.StatusRequest) (*v1.StatusResponse, error) {
