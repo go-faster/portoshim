@@ -57,40 +57,22 @@ var (
 )
 
 type PortoshimRuntimeMapper struct {
-	netPlugin       cni.CNI
+	cni             *cniWatcher
 	streamingServer streaming.Server
-}
-
-func netPluginOptions() []cni.Opt {
-	return []cni.Opt{
-		cni.WithLoNetwork,
-		cni.WithDefaultConf,
-	}
 }
 
 func NewPortoshimRuntimeMapper() (*PortoshimRuntimeMapper, error) {
 	rm := &PortoshimRuntimeMapper{}
 
-	netPlugin, err := cni.New(cni.WithMinNetworkCount(networkAttachCount),
-		cni.WithPluginConfDir(Cfg.CNI.ConfDir),
-		cni.WithPluginDir([]string{Cfg.CNI.BinDir}),
-		cni.WithInterfacePrefix(ifPrefixName))
+	watcher, err := newCNIWatcher(zap.L().Named("cni-watcher"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cni: %v", err)
+		return nil, fmt.Errorf("create CNI watcher: %w", err)
 	}
-	if err = netPlugin.Load(netPluginOptions()...); err != nil {
-		zap.S().Warnf("failed to load cni configuration: %v", err)
-		go func() {
-			// Trying to do it in background. Probably CNI is not installed yet.
-			ticker := time.NewTicker(1 * time.Second)
-			for range ticker.C {
-				if err = netPlugin.Load(netPluginOptions()...); err != nil {
-					zap.S().Warnf("failed to load cni configuration: %v", err)
-				}
-			}
-		}()
-	}
-	rm.netPlugin = netPlugin
+	go func() {
+		if err := watcher.Run(); err != nil {
+			zap.L().Warn("Start CNI watcher", zap.Error(err))
+		}
+	}()
 
 	rm.streamingServer, err = NewStreamingServer(fmt.Sprintf("%s:%d", Cfg.StreamingServer.Address, Cfg.StreamingServer.Port))
 	if err != nil {
@@ -819,7 +801,8 @@ func (m *PortoshimRuntimeMapper) preparePodNetwork(ctx context.Context, podSpec 
 		return nil
 	}
 
-	if m.netPlugin == nil {
+	netPlugin := m.cni.Plugin()
+	if netPlugin == nil {
 		return fmt.Errorf("cni wasn't initialized")
 	}
 
@@ -831,7 +814,7 @@ func (m *PortoshimRuntimeMapper) preparePodNetwork(ctx context.Context, podSpec 
 		cni.WithCapability("io.kubernetes.cri.pod-annotations", cfg.Annotations),
 		cni.WithLabels(toCNILabels(id, cfg)),
 	}
-	result, err := m.netPlugin.Setup(ctx, id, netnsPath.GetPath(), cniNSOpts...)
+	result, err := netPlugin.Setup(ctx, id, netnsPath.GetPath(), cniNSOpts...)
 	if err != nil {
 		return err
 	}
@@ -1080,7 +1063,7 @@ func (m *PortoshimRuntimeMapper) RemovePodSandbox(ctx context.Context, req *v1.R
 	netnsProp := parsePropertyNetNS(netProp)
 	if netnsProp != "" {
 		netnsPath := netns.LoadNetNS(filepath.Join(Cfg.CNI.NetnsDir, netnsProp))
-		if err := m.netPlugin.Remove(ctx, id, netnsPath.GetPath(), cni.WithLabels(map[string]string{})); err != nil {
+		if err := m.cni.Plugin().Remove(ctx, id, netnsPath.GetPath(), cni.WithLabels(map[string]string{})); err != nil {
 			return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
 		}
 		if err := netnsPath.Remove(); err != nil {
@@ -1699,12 +1682,13 @@ func (m *PortoshimRuntimeMapper) UpdateRuntimeConfig(ctx context.Context, req *v
 		return &v1.UpdateRuntimeConfigResponse{}, nil
 	}
 
-	if err := m.netPlugin.Status(); err == nil {
+	netPlugin := m.cni.Plugin()
+	if err := netPlugin.Status(); err == nil {
 		DebugLog(ctx, "CNI plugin already initialized, do nothing")
 		return &v1.UpdateRuntimeConfigResponse{}, nil
 	}
 
-	if err := m.netPlugin.Load(netPluginOptions()...); err == nil {
+	if err := netPlugin.Load(netPluginOptions()...); err == nil {
 		DebugLog(ctx, "CNI plugin successfully loaded, do nothing")
 		return &v1.UpdateRuntimeConfigResponse{}, nil
 	}
