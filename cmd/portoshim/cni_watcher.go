@@ -74,7 +74,7 @@ func (w *cniWatcher) Plugin() cni.CNI {
 }
 
 func (w *cniWatcher) Run() error {
-	w.log.Info("Starting CNI config watcher")
+	w.log.Info("Starting CNI config watcher", zap.String("dir", w.confDir))
 watchLoop:
 	for {
 		select {
