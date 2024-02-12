@@ -61,15 +61,15 @@ type PortoshimRuntimeMapper struct {
 	streamingServer streaming.Server
 }
 
-func NewPortoshimRuntimeMapper() (*PortoshimRuntimeMapper, error) {
-	rm := &PortoshimRuntimeMapper{}
+func NewPortoshimRuntimeMapper() (rm *PortoshimRuntimeMapper, err error) {
+	rm = &PortoshimRuntimeMapper{}
 
-	watcher, err := newCNIWatcher(zap.L().Named("cni-watcher"))
+	rm.cni, err = newCNIWatcher(zap.L().Named("cni-watcher"))
 	if err != nil {
 		return nil, fmt.Errorf("create CNI watcher: %w", err)
 	}
 	go func() {
-		if err := watcher.Run(); err != nil {
+		if err := rm.cni.Run(); err != nil {
 			zap.L().Warn("Start CNI watcher", zap.Error(err))
 		}
 	}()
