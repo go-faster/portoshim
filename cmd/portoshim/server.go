@@ -69,7 +69,8 @@ func getPortoClient(ctx context.Context) porto.PortoAPI {
 }
 
 func getRequestID(ctx context.Context) string {
-	return ctx.Value("requestId").(string)
+	id, _ := ctx.Value("requestId").(string)
+	return id
 }
 
 func serverInterceptor(ctx context.Context,
