@@ -166,7 +166,7 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 			continue
 		}
 		DebugLog(ctx, "Got token failed from %s", service)
-		return resp.Token, nil
+		return "Bearer " + resp.Token, nil
 	}
 
 	return "", nil
