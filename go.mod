@@ -6,6 +6,7 @@ require (
 	github.com/containerd/containerd v1.5.14
 	github.com/containerd/go-cni v1.1.7
 	github.com/creack/pty v1.1.9
+	github.com/distribution/reference v0.5.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/ten-nancy/porto/src/api/go/porto v0.0.0-20230829223000-246e68cb7364
 	go.uber.org/zap v1.21.0
@@ -37,6 +38,7 @@ require (
 	github.com/moby/sys/symlink v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	go.opencensus.io v0.23.0 // indirect

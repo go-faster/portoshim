@@ -18,17 +18,15 @@ const (
 	defaultDockerRegistry = "registry-1.docker.io"
 )
 
-var (
-	KnownRegistries = map[string]RegistryInfo{
-		defaultDockerRegistry: RegistryInfo{
-			Host: defaultDockerRegistry,
-		},
-		"quay.io": RegistryInfo{
-			Host:     "quay.io",
-			AuthPath: "https://quay.io/v2/auth",
-		},
-	}
-)
+var KnownRegistries = map[string]RegistryInfo{
+	defaultDockerRegistry: {
+		Host: defaultDockerRegistry,
+	},
+	"quay.io": {
+		Host:     "quay.io",
+		AuthPath: "https://quay.io/v2/auth",
+	},
+}
 
 func InitKnownRegistries() error {
 	for _, info := range Cfg.Images.Registries {
