@@ -35,6 +35,11 @@ func main() {
 		return
 	}
 
+	if err = InitAuths(); err != nil {
+		zap.S().Fatalf("cannot init auths: %v", err)
+		return
+	}
+
 	server, err := NewPortoshimServer(Cfg.Portoshim.Socket)
 	if err != nil {
 		zap.S().Fatalf("server init error: %v", err)

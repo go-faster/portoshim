@@ -108,6 +108,17 @@ func (m *PortoshimImageMapper) PullImage(ctx context.Context, req *v1.PullImageR
 	}, nil
 }
 
+func ConvertToHostname(url string) string {
+	stripped := url
+	if strings.HasPrefix(url, "http://") {
+		stripped = strings.TrimPrefix(url, "http://")
+	} else if strings.HasPrefix(url, "https://") {
+		stripped = strings.TrimPrefix(url, "https://")
+	}
+	hostname, _, _ := strings.Cut(stripped, "/")
+	return hostname
+}
+
 func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpec) (string, error) {
 	ref, err := reference.ParseNormalizedNamed(spec.Image)
 	if err != nil {
@@ -121,6 +132,36 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 		digestOrTag = ref.Tag()
 	default:
 		return "", nil
+	}
+
+	var (
+		authCfg   AuthConfig
+		gotDomain = ConvertToHostname(spec.Image)
+	)
+	for authDomain, auth := range Cfg.Images.AuthCfg.Auths {
+		if authDomain == gotDomain {
+			DebugLog(ctx, "Using auth config %q for %q", authDomain, spec.Image)
+			authCfg = auth
+			break
+		}
+	}
+	// Prefer defined registry token.
+	if t := authCfg.RegistryToken; t != "" {
+		return "Bearer " + t, nil
+	}
+	var (
+		username = authCfg.Username
+		secret   = authCfg.IdentityToken
+		headers  http.Header
+	)
+	if secret == "" {
+		secret = authCfg.Password
+	}
+	if h := Cfg.Images.AuthCfg.HTTPHeaders; len(h) > 0 {
+		headers = http.Header{}
+		for name, value := range h {
+			headers.Set(name, value)
+		}
 	}
 
 	manifestURL := (&url.URL{
@@ -166,10 +207,12 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 			scopes = strings.Split(scope, " ")
 		}
 
-		resp, err := auth.FetchToken(ctx, http.DefaultClient, http.Header{}, auth.TokenOptions{
-			Realm:   realm,
-			Service: service,
-			Scopes:  scopes,
+		resp, err := auth.FetchToken(ctx, http.DefaultClient, headers, auth.TokenOptions{
+			Realm:    realm,
+			Service:  service,
+			Scopes:   scopes,
+			Username: username,
+			Secret:   secret,
 		})
 		if err != nil {
 			DebugLog(ctx, "Fetch token failed: %s", err)

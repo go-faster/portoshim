@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
@@ -55,7 +58,69 @@ func InitKnownRegistries() error {
 			KnownRegistries[host] = registry
 		}
 	}
+
 	return nil
+}
+
+func InitAuths() error {
+	const defaultAuthsFile = "/etc/portoshim/auths.json"
+	authsPath := Cfg.Images.AuthsFile
+	if authsPath == "" {
+		// Path is not present in config.
+		if _, err := os.Stat(defaultAuthsFile); err != nil {
+			// Default location does not exist either.
+			return nil
+		}
+		authsPath = defaultAuthsFile
+	}
+	zap.S().Debugw("Reading auths", "path", authsPath)
+
+	data, err := os.ReadFile(authsPath)
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(data, &Cfg.Images.AuthCfg); err != nil {
+		return fmt.Errorf("parse auths from %q: %w", authsPath, err)
+	}
+	auths := Cfg.Images.AuthCfg.Auths
+	for domain, acfg := range auths {
+		if acfg.Auth == "" {
+			continue
+		}
+
+		acfg.Username, acfg.Password, err = decodeAuth(acfg.Auth)
+		if err != nil {
+			return fmt.Errorf("parse auths %q: %w", domain, err)
+		}
+
+		auths[domain] = acfg
+	}
+
+	return nil
+}
+
+// decodeAuth decodes a base64 encoded string and returns username and password
+func decodeAuth(authStr string) (string, string, error) {
+	if authStr == "" {
+		return "", "", nil
+	}
+
+	decLen := base64.StdEncoding.DecodedLen(len(authStr))
+	decoded := make([]byte, decLen)
+	authByte := []byte(authStr)
+	n, err := base64.StdEncoding.Decode(decoded, authByte)
+	if err != nil {
+		return "", "", err
+	}
+	if n > decLen {
+		return "", "", fmt.Errorf("something went wrong decoding auth config")
+	}
+	userName, password, ok := strings.Cut(string(decoded), ":")
+	if !ok || userName == "" {
+		return "", "", fmt.Errorf("invalid auth configuration file")
+	}
+	return userName, strings.Trim(password, "\x00"), nil
 }
 
 func GetImageRegistry(name string) RegistryInfo {
