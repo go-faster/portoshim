@@ -108,17 +108,6 @@ func (m *PortoshimImageMapper) PullImage(ctx context.Context, req *v1.PullImageR
 	}, nil
 }
 
-func ConvertToHostname(url string) string {
-	stripped := url
-	if strings.HasPrefix(url, "http://") {
-		stripped = strings.TrimPrefix(url, "http://")
-	} else if strings.HasPrefix(url, "https://") {
-		stripped = strings.TrimPrefix(url, "https://")
-	}
-	hostname, _, _ := strings.Cut(stripped, "/")
-	return hostname
-}
-
 func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpec) (string, error) {
 	ref, err := reference.ParseNormalizedNamed(spec.Image)
 	if err != nil {
@@ -134,16 +123,14 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 		return "", nil
 	}
 
-	var (
-		authCfg   AuthConfig
-		gotDomain = ConvertToHostname(spec.Image)
-	)
-	for authDomain, auth := range Cfg.Images.AuthCfg.Auths {
-		if authDomain == gotDomain {
-			DebugLog(ctx, "Using auth config %q for %q", authDomain, spec.Image)
-			authCfg = auth
-			break
+	var authCfg AuthConfig
+	for prefix, cfg := range Cfg.Images.AuthCfg.Auths {
+		if !strings.HasPrefix(spec.Image, prefix) {
+			continue
 		}
+		DebugLog(ctx, "Using auth config %q for %q", prefix, spec.Image)
+		authCfg = cfg
+		break
 	}
 	// Prefer defined registry token.
 	if t := authCfg.RegistryToken; t != "" {

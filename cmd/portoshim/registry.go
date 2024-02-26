@@ -84,17 +84,17 @@ func InitAuths() error {
 		return fmt.Errorf("parse auths from %q: %w", authsPath, err)
 	}
 	auths := Cfg.Images.AuthCfg.Auths
-	for domain, acfg := range auths {
-		if acfg.Auth == "" {
+	for prefix, cfg := range auths {
+		if cfg.Auth == "" {
 			continue
 		}
 
-		acfg.Username, acfg.Password, err = decodeAuth(acfg.Auth)
+		cfg.Username, cfg.Password, err = decodeAuth(cfg.Auth)
 		if err != nil {
-			return fmt.Errorf("parse auths %q: %w", domain, err)
+			return fmt.Errorf("parse auths %q: %w", prefix, err)
 		}
 
-		auths[domain] = acfg
+		auths[prefix] = cfg
 	}
 
 	return nil
