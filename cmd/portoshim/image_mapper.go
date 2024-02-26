@@ -153,19 +153,29 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 
 	for _, h := range auth.ParseAuthHeader(resp.Header) {
 		if h.Scheme != auth.BearerAuth {
+			DebugLog(ctx, "Skipping auth scheme %q", h.Scheme)
 			continue
 		}
-		service := h.Parameters["service"]
+
+		var (
+			realm   = h.Parameters["realm"]
+			service = h.Parameters["service"]
+			scopes  []string
+		)
+		if scope, ok := h.Parameters["scope"]; ok {
+			scopes = strings.Split(scope, " ")
+		}
+
 		resp, err := auth.FetchToken(ctx, http.DefaultClient, http.Header{}, auth.TokenOptions{
-			Realm:   h.Parameters["realm"],
+			Realm:   realm,
 			Service: service,
-			Scopes:  strings.Split(h.Parameters["scope"], " "),
+			Scopes:  scopes,
 		})
 		if err != nil {
 			DebugLog(ctx, "Fetch token failed: %s", err)
 			continue
 		}
-		DebugLog(ctx, "Got token failed from %s", service)
+		DebugLog(ctx, "Got token (service: %q, realm: %q, scopes %#v)", service, realm, scopes)
 		return "Bearer " + resp.Token, nil
 	}
 
