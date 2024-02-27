@@ -84,23 +84,9 @@ func (m *PortoshimImageMapper) ImageStatus(ctx context.Context, req *v1.ImageSta
 func (m *PortoshimImageMapper) PullImage(ctx context.Context, req *v1.PullImageRequest) (*v1.PullImageResponse, error) {
 	pc := getPortoClient(ctx)
 
-	registry := GetImageRegistry(req.GetImage().GetImage())
-	authToken := registry.AuthToken
-	if authToken == "" {
-		if req.GetAuth() != nil && req.GetAuth().GetPassword() != "" {
-			authToken = req.GetAuth().GetPassword()
-		} else {
-			var err error
-			authToken, err = m.fetchToken(ctx, req.GetImage())
-			if err != nil {
-				DebugLog(ctx, "Fetch token failed: %v", err)
-			}
-		}
-	}
-
-	image, err := pc.PullDockerImage(req.GetImage().GetImage(), "", authToken, registry.AuthPath, registry.AuthService)
+	image, err := pullImage(ctx, pc, req.GetImage().GetImage(), req.GetAuth())
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
+		return nil, fmt.Errorf("pull image: %w", err)
 	}
 
 	return &v1.PullImageResponse{
@@ -108,10 +94,34 @@ func (m *PortoshimImageMapper) PullImage(ctx context.Context, req *v1.PullImageR
 	}, nil
 }
 
-func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpec) (string, error) {
-	ref, err := reference.ParseNormalizedNamed(spec.Image)
+func pullImage(ctx context.Context, pc porto.PortoAPI, img string, auth *v1.AuthConfig) (*pb.TDockerImage, error) {
+	registry := GetImageRegistry(img)
+	authToken := registry.AuthToken
+	if authToken == "" {
+		if auth != nil && auth.GetPassword() != "" {
+			authToken = auth.GetPassword()
+		} else {
+			var err error
+			authToken, err = fetchToken(ctx, img)
+			if err != nil {
+				DebugLog(ctx, "Fetch token failed: %v", err)
+			}
+		}
+	}
+
+	image, err := pc.PullDockerImage(img, "", authToken, registry.AuthPath, registry.AuthService)
 	if err != nil {
-		return "", fmt.Errorf("parse reference %w", err)
+		return nil, fmt.Errorf("request porto to pull %q: %w", img, err)
+	}
+	return image, nil
+}
+
+func fetchToken(ctx context.Context, img string) (string, error) {
+	client := http.DefaultClient
+
+	ref, err := reference.ParseNormalizedNamed(img)
+	if err != nil {
+		return "", fmt.Errorf("parse reference %q: %w", img, err)
 	}
 	var digestOrTag string
 	switch ref := ref.(type) {
@@ -125,10 +135,10 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 
 	var authCfg AuthConfig
 	for prefix, cfg := range Cfg.Images.AuthCfg.Auths {
-		if !strings.HasPrefix(spec.Image, prefix) {
+		if !strings.HasPrefix(img, prefix) {
 			continue
 		}
-		DebugLog(ctx, "Using auth config %q for %q", prefix, spec.Image)
+		DebugLog(ctx, "Using auth config %q for %q", prefix, img)
 		authCfg = cfg
 		break
 	}
@@ -162,7 +172,7 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 	).String()
 
 	DebugLog(ctx, "Trying to fetch manifest %s", manifestURL)
-	resp, err := m.get(ctx, manifestURL)
+	resp, err := get(ctx, client, manifestURL)
 	if err != nil {
 		return "", fmt.Errorf("get manifest: %w", err)
 	}
@@ -194,7 +204,7 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 			scopes = strings.Split(scope, " ")
 		}
 
-		resp, err := auth.FetchToken(ctx, http.DefaultClient, headers, auth.TokenOptions{
+		resp, err := auth.FetchToken(ctx, client, headers, auth.TokenOptions{
 			Realm:    realm,
 			Service:  service,
 			Scopes:   scopes,
@@ -212,13 +222,13 @@ func (m *PortoshimImageMapper) fetchToken(ctx context.Context, spec *v1.ImageSpe
 	return "", nil
 }
 
-func (m *PortoshimImageMapper) get(ctx context.Context, url string) (*http.Response, error) {
+func get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}

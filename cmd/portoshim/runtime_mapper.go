@@ -921,11 +921,8 @@ func (m *PortoshimRuntimeMapper) preparePauseImage(ctx context.Context, pc porto
 		}
 	}
 
-	registry := GetImageRegistry(imgName)
-	authToken := registry.AuthToken
-
 	DebugLog(ctx, "pulling pause image: %s", imgName)
-	image, err = pc.PullDockerImage(imgName, "", authToken, registry.AuthPath, registry.AuthService)
+	image, err = pullImage(ctx, pc, imgName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("pull pause image: %w", err)
 	}
