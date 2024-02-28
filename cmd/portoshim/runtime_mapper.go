@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -396,6 +398,19 @@ func prepareContainerMounts(ctx context.Context, id string, volumes *[]*pb.TVolu
 		}
 		*volumes = append(*volumes, convertMountToVolumeSpec(id, mount))
 	}
+}
+
+func sortVolumes(volumes []*pb.TVolumeSpec) {
+	// Do the same thing as containerd and Docker does.
+	//
+	// See https://github.com/containerd/containerd/blob/v1.7.13/pkg/cri/opts/spec_opts.go#L82-L108.
+	countParts := func(volume *pb.TVolumeSpec) int {
+		return strings.Count(filepath.Clean(volume.GetPath()), string(os.PathSeparator))
+	}
+	// Mount the deepest as the last.
+	slices.SortStableFunc(volumes, func(a, b *pb.TVolumeSpec) int {
+		return cmp.Compare(countParts(a), countParts(b))
+	})
 }
 
 // labels and annotations
@@ -968,6 +983,7 @@ func (m *PortoshimRuntimeMapper) RunPodSandbox(ctx context.Context, req *v1.RunP
 	if err := prepareRoot(ctx, podSpec, volumes, "", Cfg.Images.PauseImage); err != nil {
 		return nil, fmt.Errorf("%s: %v", getCurrentFuncName(), err)
 	}
+	sortVolumes(*volumes)
 
 	// create pod and rootfs
 	DebugLog(ctx, "create pod from spec: %+v", id)
@@ -1233,6 +1249,7 @@ func (m *PortoshimRuntimeMapper) CreateContainer(ctx context.Context, req *v1.Cr
 	// mounts
 	DebugLog(ctx, "prepare container mounts: %+v", req.GetConfig().GetMounts())
 	prepareContainerMounts(ctx, id, volumes, req.GetConfig().GetMounts())
+	sortVolumes(*volumes)
 
 	// create container and roootfs
 	DebugLog(ctx, "create container from spec: %+v", id)
