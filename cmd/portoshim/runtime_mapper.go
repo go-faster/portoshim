@@ -405,7 +405,12 @@ func sortVolumes(volumes []*pb.TVolumeSpec) {
 	//
 	// See https://github.com/containerd/containerd/blob/v1.7.13/pkg/cri/opts/spec_opts.go#L82-L108.
 	countParts := func(volume *pb.TVolumeSpec) int {
-		return strings.Count(filepath.Clean(volume.GetPath()), string(os.PathSeparator))
+		if len(volume.Links) == 0 {
+			return -1
+		}
+		link := volume.Links[0]
+
+		return strings.Count(filepath.Clean(link.GetTarget()), string(os.PathSeparator))
 	}
 	// Mount the deepest as the last.
 	slices.SortStableFunc(volumes, func(a, b *pb.TVolumeSpec) int {
